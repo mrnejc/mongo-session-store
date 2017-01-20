@@ -3,6 +3,7 @@ package com.themonkee.vertx.web.impl;
 import io.vertx.core.json.JsonObject;
 import io.vertx.ext.web.Session;
 
+import java.time.Instant;
 import java.time.LocalDateTime;
 import java.time.ZoneOffset;
 import java.util.Map;
@@ -49,6 +50,34 @@ public class SessionImpl extends io.vertx.ext.web.sstore.impl.SessionImpl {
         }
     }
 
+    JsonObject toJsonObject() {
+        JsonObject jo = new JsonObject();
+        if (this.id() != null)
+            jo.put(FIELD_ID, this.id());
+        Map<String, Object> data = this.data();
+        Object d;
+        for (String key : data.keySet()) {
+            d = data.get(key);
+            if(d instanceof Instant) {
+                // JsonObject only accepts Instant object for date
+                // have to wrap it with $date object or it will be saved as String and not as ISODate
+                // thnx to Milton Loayza in vert.x Google group
+                // https://groups.google.com/d/msg/vertx/a0yeLL23GyQ/Dn7Gs8J47K0J
+                jo.put(key, new JsonObject().put("$date", d));
+            } else {
+                jo.put(key, d);
+            }
+        }
+
+        // see above
+        jo.put(FIELD_EXPIRE,
+                new JsonObject().put("$date", LocalDateTime.now(ZoneOffset.UTC)
+                        .plusSeconds(this.sessionTimeoutAfter)
+                        .toInstant(ZoneOffset.UTC)));
+
+        return jo;
+    }
+
     /**
      * restore session object from JsonObject
      *
@@ -60,32 +89,15 @@ public class SessionImpl extends io.vertx.ext.web.sstore.impl.SessionImpl {
             if(f.equals(FIELD_ID)) {
                 this.setId(jsonObj.getString(f));
             } else if(!f.equals(FIELD_EXPIRE)) {
-                // TODO fix this - for now we presume data is always String
-                this.put(f, jsonObj.getString(f));
+                Object o = jsonObj.getValue(f);
+                // see comment in toJsonObject
+                if(o instanceof JsonObject && ((JsonObject)o).containsKey("$date")) {
+                    this.put(f, ((JsonObject)o).getInstant("$date"));
+                } else {
+                    this.put(f, o);
+                }
             }
         }
         return this;
-    }
-
-    JsonObject toJsonObject() {
-        JsonObject jo = new JsonObject();
-        if (this.id() != null)
-            jo.put(FIELD_ID, this.id());
-        Map<String, Object> data = this.data();
-        for (String key : data.keySet()) {
-            // TODO for now we presume data is always String
-            jo.put(key, data.get(key));
-        }
-
-        // JsonObject only accepts Instant object for date
-        // have to wrap it with $date object or it will be saved as String and not as ISODate
-        // thnx to Milton Loayza in vert.x Google group
-        // https://groups.google.com/d/msg/vertx/a0yeLL23GyQ/Dn7Gs8J47K0J
-        jo.put(FIELD_EXPIRE,
-                new JsonObject().put("$date", LocalDateTime.now(ZoneOffset.UTC)
-                        .plusSeconds(this.sessionTimeoutAfter)
-                        .toInstant(ZoneOffset.UTC)));
-
-        return jo;
     }
 }

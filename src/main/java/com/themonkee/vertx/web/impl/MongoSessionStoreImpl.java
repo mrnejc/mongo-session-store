@@ -37,18 +37,14 @@ public class MongoSessionStoreImpl implements MongoSessionStore {
      * defaults to 7 days
      */
     private long sessionTimeoutAfter = 7 * 24 * 60 * 60;
-    private boolean closed;
 
-    private final Vertx vertx;
-
-    public MongoSessionStoreImpl(Vertx vertx, MongoClient mongoClient) {
-        this.vertx = vertx;
+    public MongoSessionStoreImpl(Vertx ignore, MongoClient mongoClient) {
         this.mongoClient = mongoClient;
     }
 
 
     public MongoSessionStoreImpl(Vertx vertx, String mongoClientPoolName) {
-        this(vertx, MongoClient.createShared(vertx, null, mongoClientPoolName));
+        this(vertx, MongoClient.createShared(vertx, new JsonObject(), mongoClientPoolName));
     }
 
 
@@ -100,9 +96,9 @@ public class MongoSessionStoreImpl implements MongoSessionStore {
 
     @Override
     public void clear(Handler<AsyncResult<Boolean>> handler) {
-        this.mongoClient.removeDocuments(this.sessionCollection, new JsonObject(), c -> {
-            handler.handle(Future.succeededFuture(true));
-        });
+        this.mongoClient.removeDocuments(this.sessionCollection, new JsonObject(), c ->
+            handler.handle(Future.succeededFuture(c.succeeded()))
+        );
     }
 
     @Override
@@ -133,7 +129,6 @@ public class MongoSessionStoreImpl implements MongoSessionStore {
         Future<Void> startFuture = Future.future();
 
         Future<Void> futCreateColl = Future.future();
-        startFuture.completer();
         // try to create collection, if it is created or already exists its OK
         this.mongoClient.createCollection(this.sessionCollection, (AsyncResult<Void> res) -> {
             if(res.succeeded() || res.cause().getMessage().contains("collection already exists")) {
@@ -150,7 +145,7 @@ public class MongoSessionStoreImpl implements MongoSessionStore {
             // see https://docs.mongodb.com/manual/tutorial/expire-data/
             this.mongoClient.createIndexWithOptions(this.sessionCollection,
                     new JsonObject().put(SessionImpl.FIELD_EXPIRE, 1),
-                    new IndexOptions().expireAfter(0l, TimeUnit.SECONDS),
+                    new IndexOptions().expireAfter(0L, TimeUnit.SECONDS),
                     res -> {
                 if(res.succeeded()) {
                     startFuture.complete();
