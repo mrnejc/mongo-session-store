@@ -1,13 +1,11 @@
 package com.themonkee.vertx.web.impl;
 
 import com.themonkee.vertx.web.MongoSessionStore;
-import io.vertx.core.AsyncResult;
-import io.vertx.core.Future;
-import io.vertx.core.Handler;
-import io.vertx.core.Vertx;
+import io.vertx.core.*;
 import io.vertx.core.json.JsonObject;
 import io.vertx.ext.mongo.IndexOptions;
 import io.vertx.ext.mongo.MongoClient;
+import io.vertx.ext.mongo.UpdateOptions;
 import io.vertx.ext.web.Session;
 
 import java.util.concurrent.TimeUnit;
@@ -31,20 +29,55 @@ import java.util.concurrent.TimeUnit;
 public class MongoSessionStoreImpl implements MongoSessionStore {
 
     private final MongoClient mongoClient;
+    private final Vertx vertx;
 
     private String sessionCollection = "sessions";
-    /**
-     * defaults to 7 days
-     */
-    private long sessionTimeoutAfter = 7 * 24 * 60 * 60;
+    private long sessionTimeoutAfter;
 
-    public MongoSessionStoreImpl(Vertx ignore, MongoClient mongoClient) {
-        this.mongoClient = mongoClient;
+    public MongoSessionStoreImpl(Vertx vertx,
+                                 String mongoClientPoolName,
+                                 JsonObject options,
+                                 Future<MongoSessionStore> resultHandler) {
+        this(vertx, MongoClient.createShared(vertx, new JsonObject(), mongoClientPoolName), options, resultHandler);
     }
 
+    public MongoSessionStoreImpl(Vertx vertx,
+                                 MongoClient mongoClient,
+                                 JsonObject options,
+                                 Future<MongoSessionStore> resultHandler) {
+        this.vertx = vertx;
+        this.mongoClient = mongoClient;
+        if(options != null) {
+            if(options.containsKey("collection"))
+                this.sessionCollection = options.getString("collection");
+        }
 
-    public MongoSessionStoreImpl(Vertx vertx, String mongoClientPoolName) {
-        this(vertx, MongoClient.createShared(vertx, new JsonObject(), mongoClientPoolName));
+        Future<Void> futCreateColl = Future.future();
+        // try to create collection, if it is created or already exists its OK
+        this.mongoClient.createCollection(this.sessionCollection, (AsyncResult<Void> res) -> {
+            if(res.succeeded() || res.cause().getMessage().contains("collection already exists")) {
+                futCreateColl.complete();
+            } else {
+                futCreateColl.fail(res.cause());
+            }
+        });
+
+        futCreateColl.compose(v -> {
+            // create the session expiry index
+            // SessionImpl sets _expire field to Date when session document must be deleted on save
+            // so we set expireAfterSeconds to 0 so its deleted when that Date is hit
+            // see https://docs.mongodb.com/manual/tutorial/expire-data/
+            this.mongoClient.createIndexWithOptions(this.sessionCollection,
+                    new JsonObject().put(SessionImpl.FIELD_EXPIRE, 1),
+                    new IndexOptions().expireAfter(0L, TimeUnit.SECONDS),
+                    res -> {
+                        if(res.succeeded()) {
+                            resultHandler.complete(this);
+                        } else {
+                            resultHandler.fail(res.cause());
+                        }
+                    });
+        }, resultHandler);
     }
 
 
@@ -60,37 +93,37 @@ public class MongoSessionStoreImpl implements MongoSessionStore {
 
     @Override
     public void get(String id, Handler<AsyncResult<Session>> handler) {
-        this.mongoClient.findOne(this.sessionCollection,
-                new JsonObject().put(SessionImpl.FIELD_ID, id),
+        this.mongoClient.findOne(
+                this.sessionCollection,
+                new JsonObject().put("_id", id),
                 null,
-                r -> handler.handle(Future.succeededFuture(new SessionImpl(id, sessionTimeoutAfter).fromJsonObject(r.result()))));
+                r -> {
+                    if(r.result() == null) {
+                        handler.handle(Future.failedFuture("Session not found"));
+                    } else {
+                        handler.handle(Future.succeededFuture(new SessionImpl(id, sessionTimeoutAfter).fromJsonObject(r.result())));
+                    }
+                });
     }
 
     @Override
     public void delete(String id, Handler<AsyncResult<Boolean>> handler) {
         this.mongoClient.removeDocument(this.sessionCollection,
-                new JsonObject().put(SessionImpl.FIELD_ID, id),
+                new JsonObject().put("_id", id),
                 r -> handler.handle(Future.succeededFuture(r.succeeded())));
     }
 
     @Override
     public void put(Session session, Handler<AsyncResult<Boolean>> handler) {
-        SessionImpl si = (SessionImpl) session;
-
-        if(session.id() == null) {
-            this.mongoClient.save(this.sessionCollection,
-                    si.toJsonObject(),
-                    r -> {
-                        // result is an id
-                        ((SessionImpl) session).setId(r.result());
-                        handler.handle(Future.succeededFuture(r.succeeded()));
-                    });
-        } else {
-            this.mongoClient.replaceDocuments(this.sessionCollection,
-                    si.toJsonObject(),
-                    new JsonObject().put(SessionImpl.FIELD_ID, session.id()),
-                    r -> handler.handle(Future.succeededFuture(r.succeeded())));
-        }
+        SessionImpl s = (SessionImpl)session;
+        this.mongoClient.replaceDocumentsWithOptions(
+                this.sessionCollection,
+                new JsonObject().put("_id", s.id()),
+                s.toJsonObject(),
+                new UpdateOptions()
+                        .setUpsert(true)
+                        .setMulti(false),
+                r->handler.handle(Future.succeededFuture(r.succeeded())));
     }
 
 
@@ -112,49 +145,4 @@ public class MongoSessionStoreImpl implements MongoSessionStore {
 
     @Override
     public void close() { /* nothing to do */ }
-
-    @Override
-    public MongoSessionStore setCollectionName(String collectionName) {
-        this.sessionCollection = collectionName;
-        return this;
-    }
-
-    @Override
-    public MongoSessionStore setSessionTimeout(int sessionTimeout) {
-        this.sessionTimeoutAfter = sessionTimeout;
-        return this;
-    }
-
-    public Future<Void> init() {
-        Future<Void> startFuture = Future.future();
-
-        Future<Void> futCreateColl = Future.future();
-        // try to create collection, if it is created or already exists its OK
-        this.mongoClient.createCollection(this.sessionCollection, (AsyncResult<Void> res) -> {
-            if(res.succeeded() || res.cause().getMessage().contains("collection already exists")) {
-                futCreateColl.complete();
-            } else {
-                futCreateColl.fail(res.cause());
-            }
-        });
-
-        futCreateColl.compose(v -> {
-            // create the session expiry index
-            // SessionImpl sets _expire field to Date when session document must be deleted on save
-            // so we set expireAfterSeconds to 0 so its deleted when that Date is hit
-            // see https://docs.mongodb.com/manual/tutorial/expire-data/
-            this.mongoClient.createIndexWithOptions(this.sessionCollection,
-                    new JsonObject().put(SessionImpl.FIELD_EXPIRE, 1),
-                    new IndexOptions().expireAfter(0L, TimeUnit.SECONDS),
-                    res -> {
-                if(res.succeeded()) {
-                    startFuture.complete();
-                } else {
-                    startFuture.fail(res.cause());
-                }
-            });
-        }, startFuture);
-
-        return startFuture;
-    }
 }

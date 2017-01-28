@@ -7,6 +7,7 @@ import java.time.Instant;
 import java.time.LocalDateTime;
 import java.time.ZoneOffset;
 import java.util.Map;
+import java.util.UUID;
 
 /**
  * extension of {@link io.vertx.ext.web.sstore.impl.SessionImpl} because:
@@ -16,14 +17,14 @@ import java.util.Map;
  * </ul>
  */
 public class SessionImpl extends io.vertx.ext.web.sstore.impl.SessionImpl {
-    static final String FIELD_ID = "_id";
+    private static final String FIELD_ID = "_id";
     static final String FIELD_EXPIRE = "_expires";
 
     private String id;
     private long sessionTimeoutAfter;
 
     SessionImpl(long sessionTimeoutAfter) {
-        this(null, sessionTimeoutAfter);
+        this(UUID.randomUUID().toString(), sessionTimeoutAfter);
     }
 
     SessionImpl(String id, long sessionTimeoutAfter) {
@@ -52,8 +53,7 @@ public class SessionImpl extends io.vertx.ext.web.sstore.impl.SessionImpl {
 
     JsonObject toJsonObject() {
         JsonObject jo = new JsonObject();
-        if (this.id() != null)
-            jo.put(FIELD_ID, this.id());
+        jo.put(FIELD_ID, this.id());
         Map<String, Object> data = this.data();
         Object d;
         for (String key : data.keySet()) {

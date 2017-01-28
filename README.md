@@ -7,6 +7,27 @@ that uses MongoDB backend for storing web client sessions.
 
 Code is based on *LocalSessionStore* implementation in [vertx-web](https://github.com/vert-x3/vertx-web).
 
+## Usage
+
+To use the session store first create MongoClient
+
+    vertx = Vertx.vertx();
+    mongoClient = MongoClient.createNonShared(vertx,
+                                              new JsonObject().put("host", "localhost")
+                                                              .put("port", 27017)
+                                                              .put("db_name", "test));
+
+and then pass the connection to create session store, if you want to change the name of session collection (default is 
+"sessions") set it via configuration _JsonObject_ and setup _SessionHandler_ to use this store in handler 
+    
+    MongoSessionStore.create(vertx, mongoClient, new JsonObject.put("collection", "my_sessions" ).setHandler(r->{
+      if(r.succeeded())
+        sessionHandler = SessionHandler.create(r.result());
+      else
+        <... handle error ...>
+    });
+
+
 ## Dependencies
 
 This module is build against *vertx-web* and *vertx-mongo-client*. Make sure you add them to your *pom.xml*:

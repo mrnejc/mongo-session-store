@@ -1,8 +1,11 @@
 package com.themonkee.vertx.web;
 
 import com.themonkee.vertx.web.impl.MongoSessionStoreImpl;
+import io.vertx.core.AsyncResult;
 import io.vertx.core.Future;
+import io.vertx.core.Handler;
 import io.vertx.core.Vertx;
+import io.vertx.core.json.JsonObject;
 import io.vertx.ext.mongo.MongoClient;
 import io.vertx.ext.web.sstore.SessionStore;
 
@@ -28,10 +31,13 @@ public interface MongoSessionStore extends SessionStore {
      *
      * @param vertx  the Vert.x instance
      * @param mongoClient  client for accessing MongoDB
-     * @return the session store
+     * @param options  session store options, see README
+     * @return  Future that resolves to created session store
      */
-    static MongoSessionStore create(Vertx vertx, MongoClient mongoClient) {
-        return new MongoSessionStoreImpl(vertx, mongoClient);
+    static Future<MongoSessionStore> create(Vertx vertx, MongoClient mongoClient, JsonObject options) {
+        Future<MongoSessionStore> f = Future.future();
+        new MongoSessionStoreImpl(vertx, mongoClient, options, f);
+        return f;
     }
 
     /**
@@ -39,28 +45,12 @@ public interface MongoSessionStore extends SessionStore {
      *
      * @param vertx  the Vert.x instance
      * @param mongoClientPoolName  name for pool name if client was already created using provided vertx instance
-     * @return the session store
+     * @param options  session store options, see README
+     * @return Future that resolves to created session store
      */
-    static MongoSessionStore create(Vertx vertx, String mongoClientPoolName) {
-        return new MongoSessionStoreImpl(vertx, mongoClientPoolName);
+    static Future<MongoSessionStore> create(Vertx vertx, String mongoClientPoolName, JsonObject options) {
+        Future<MongoSessionStore> f = Future.future();
+        new MongoSessionStoreImpl(vertx, mongoClientPoolName, options, f);
+        return f;
     }
-
-    /**
-     * Override collection name, defaults to 'sessions'
-     *
-     * @param collectionName  the name of collection to use
-     * @return the session store
-     */
-    MongoSessionStore setCollectionName(String collectionName);
-
-    /**
-     * Set when the session expires
-     *
-     * @param sessionTimeout
-     * @return
-     */
-    MongoSessionStore setSessionTimeout(int sessionTimeout);
-
-
-    public Future<Void> init();
 }
