@@ -9,7 +9,24 @@ Code is based on *LocalSessionStore* implementation in [vertx-web](https://githu
 
 ## Usage
 
-To use the session store first create MongoClient
+I'm using [JitPack.io](https://jitpack.io) for package distribution. Add repository and dependency to your pom.xml file:
+
+    <repositories>
+        <repository>
+            <id>jitpack.io</id>
+            <url>https://jitpack.io</url>
+        </repository>
+    </repositories>
+
+    <dependencies>
+        <dependency>
+             <groupId>com.themonkee</groupId>
+             <artifactId>mongo-session-store</artifactId>
+             <version><!-- pick the version from tags --></version>
+        </dependency>
+    </dependencies>
+
+Now to your code. To use the session store first create MongoClient
 
     vertx = Vertx.vertx();
     mongoClient = MongoClient.createNonShared(vertx,
@@ -49,4 +66,4 @@ This module is build against *vertx-web* and *vertx-mongo-client*. Make sure you
 Since *vertx-web* is provided under dual [Eclipse Public License v1.0](http://www.eclipse.org/legal/epl-v10.html) 
 and [Apache License v2.0](http://www.opensource.org/licenses/apache2.0.php) this code is released under same conditions.  
 
-[![](https://jitpack.io/v/mrnejc/mongo-session-store.svg)](https://jitpack.io/#mrnejc/mongo-session-store)
+[![](https://jitpack.io/v/com.themonkee/mongo-session-store.svg)](https://jitpack.io/#com.themonkee/mongo-session-store)
