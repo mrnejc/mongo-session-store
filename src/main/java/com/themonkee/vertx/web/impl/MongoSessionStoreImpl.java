@@ -32,7 +32,6 @@ public class MongoSessionStoreImpl implements MongoSessionStore {
     private final Vertx vertx;
 
     private String sessionCollection = "sessions";
-    private long sessionTimeoutAfter;
 
     public MongoSessionStoreImpl(Vertx vertx,
                                  String mongoClientPoolName,
@@ -101,7 +100,7 @@ public class MongoSessionStoreImpl implements MongoSessionStore {
                     if(r.result() == null) {
                         handler.handle(Future.succeededFuture(null));
                     } else {
-                        handler.handle(Future.succeededFuture(new SessionImpl(id, sessionTimeoutAfter).fromJsonObject(r.result())));
+                        handler.handle(Future.succeededFuture(new SessionImpl(id, 0).fromJsonObject(r.result())));
                     }
                 });
     }

@@ -70,11 +70,10 @@ public class SessionImpl extends io.vertx.ext.web.sstore.impl.SessionImpl {
         }
 
         // see above
-        jo.put(FIELD_EXPIRE,
-                new JsonObject().put("$date", LocalDateTime.now(ZoneOffset.UTC)
+        jo.put(FIELD_EXPIRE, new JsonObject().put("$date",
+                LocalDateTime.now(ZoneOffset.UTC)
                         .plusSeconds(this.sessionTimeoutAfter)
                         .toInstant(ZoneOffset.UTC)));
-
         return jo;
     }
 
@@ -88,7 +87,10 @@ public class SessionImpl extends io.vertx.ext.web.sstore.impl.SessionImpl {
         for(String f: jsonObj.fieldNames()) {
             if(f.equals(FIELD_ID)) {
                 this.setId(jsonObj.getString(f));
-            } else if(!f.equals(FIELD_EXPIRE)) {
+            } else if(f.equals(FIELD_EXPIRE)) {
+                Instant i = jsonObj.getJsonObject(f).getInstant("$date");
+                this.sessionTimeoutAfter = (i.toEpochMilli() - Instant.now().toEpochMilli())/1000;
+            } else {
                 Object o = jsonObj.getValue(f);
                 // see comment in toJsonObject
                 if(o instanceof JsonObject && ((JsonObject)o).containsKey("$date")) {
