@@ -99,7 +99,7 @@ public class MongoSessionStoreImpl implements MongoSessionStore {
                 null,
                 r -> {
                     if(r.result() == null) {
-                        handler.handle(Future.failedFuture("Session not found"));
+                        handler.handle(Future.succeededFuture(null));
                     } else {
                         handler.handle(Future.succeededFuture(new SessionImpl(id, sessionTimeoutAfter).fromJsonObject(r.result())));
                     }
