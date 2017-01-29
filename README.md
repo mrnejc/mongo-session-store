@@ -48,3 +48,5 @@ This module is build against *vertx-web* and *vertx-mongo-client*. Make sure you
 
 Since *vertx-web* is provided under dual [Eclipse Public License v1.0](http://www.eclipse.org/legal/epl-v10.html) 
 and [Apache License v2.0](http://www.opensource.org/licenses/apache2.0.php) this code is released under same conditions.  
+
+[![](https://jitpack.io/v/mrnejc/mongo-session-store.svg)](https://jitpack.io/#mrnejc/mongo-session-store)
