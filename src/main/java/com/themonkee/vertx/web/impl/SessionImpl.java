@@ -1,13 +1,13 @@
 package com.themonkee.vertx.web.impl;
 
 import io.vertx.core.json.JsonObject;
+import io.vertx.ext.auth.PRNG;
 import io.vertx.ext.web.Session;
 
 import java.time.Instant;
 import java.time.LocalDateTime;
 import java.time.ZoneOffset;
 import java.util.Map;
-import java.util.UUID;
 
 /**
  * extension of {@link io.vertx.ext.web.sstore.impl.SessionImpl} because:
@@ -23,12 +23,13 @@ public class SessionImpl extends io.vertx.ext.web.sstore.impl.SessionImpl {
     private String id;
     private long sessionTimeoutAfter;
 
-    SessionImpl(long sessionTimeoutAfter) {
-        this(UUID.randomUUID().toString(), sessionTimeoutAfter);
+    SessionImpl(PRNG random) {
+        super(random);
     }
 
-    SessionImpl(String id, long sessionTimeoutAfter) {
-        this.id = id;
+    SessionImpl(PRNG random, long sessionTimeoutAfter, int idLength) {
+        super(random, sessionTimeoutAfter, idLength);
+        this.id = super.id();
         this.sessionTimeoutAfter = sessionTimeoutAfter;
     }
 
