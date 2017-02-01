@@ -1,13 +1,14 @@
 package com.themonkee.vertx.web.impl;
 
 import io.vertx.core.json.JsonObject;
+import io.vertx.ext.auth.PRNG;
+import io.vertx.ext.mongo.impl.codec.json.JsonObjectCodec;
 import io.vertx.ext.web.Session;
 
 import java.time.Instant;
 import java.time.LocalDateTime;
 import java.time.ZoneOffset;
 import java.util.Map;
-import java.util.UUID;
 
 /**
  * extension of {@link io.vertx.ext.web.sstore.impl.SessionImpl} because:
@@ -17,18 +18,18 @@ import java.util.UUID;
  * </ul>
  */
 public class SessionImpl extends io.vertx.ext.web.sstore.impl.SessionImpl {
-    private static final String FIELD_ID = "_id";
-    static final String FIELD_EXPIRE = "_expires";
+    static final String EXPIRE_FIELD = "_expires";
 
     private String id;
     private long sessionTimeoutAfter;
 
-    SessionImpl(long sessionTimeoutAfter) {
-        this(UUID.randomUUID().toString(), sessionTimeoutAfter);
+    SessionImpl(PRNG random) {
+        super(random);
     }
 
-    SessionImpl(String id, long sessionTimeoutAfter) {
-        this.id = id;
+    SessionImpl(PRNG random, long sessionTimeoutAfter, int idLength) {
+        super(random, sessionTimeoutAfter, idLength);
+        this.id = super.id();
         this.sessionTimeoutAfter = sessionTimeoutAfter;
     }
 
@@ -44,7 +45,7 @@ public class SessionImpl extends io.vertx.ext.web.sstore.impl.SessionImpl {
     @Override
     public Session put(String key, Object obj) {
         // a small defense
-        if(key.equals(FIELD_ID) || key.equals(FIELD_EXPIRE)) {
+        if(key.equals(JsonObjectCodec.ID_FIELD) || key.equals(EXPIRE_FIELD)) {
             return this;
         } else {
             return super.put(key, obj);
@@ -53,7 +54,7 @@ public class SessionImpl extends io.vertx.ext.web.sstore.impl.SessionImpl {
 
     JsonObject toJsonObject() {
         JsonObject jo = new JsonObject();
-        jo.put(FIELD_ID, this.id());
+        jo.put(JsonObjectCodec.ID_FIELD, this.id());
         Map<String, Object> data = this.data();
         Object d;
         for (String key : data.keySet()) {
@@ -63,14 +64,14 @@ public class SessionImpl extends io.vertx.ext.web.sstore.impl.SessionImpl {
                 // have to wrap it with $date object or it will be saved as String and not as ISODate
                 // thnx to Milton Loayza in vert.x Google group
                 // https://groups.google.com/d/msg/vertx/a0yeLL23GyQ/Dn7Gs8J47K0J
-                jo.put(key, new JsonObject().put("$date", d));
+                jo.put(key, new JsonObject().put(JsonObjectCodec.DATE_FIELD, d));
             } else {
                 jo.put(key, d);
             }
         }
 
         // see above
-        jo.put(FIELD_EXPIRE, new JsonObject().put("$date",
+        jo.put(EXPIRE_FIELD, new JsonObject().put(JsonObjectCodec.DATE_FIELD,
                 LocalDateTime.now(ZoneOffset.UTC)
                         .plusSeconds(this.sessionTimeoutAfter)
                         .toInstant(ZoneOffset.UTC)));
@@ -85,16 +86,16 @@ public class SessionImpl extends io.vertx.ext.web.sstore.impl.SessionImpl {
      */
     SessionImpl fromJsonObject(JsonObject jsonObj) {
         for(String f: jsonObj.fieldNames()) {
-            if(f.equals(FIELD_ID)) {
+            if(f.equals(JsonObjectCodec.ID_FIELD)) {
                 this.setId(jsonObj.getString(f));
-            } else if(f.equals(FIELD_EXPIRE)) {
-                Instant i = jsonObj.getJsonObject(f).getInstant("$date");
+            } else if(f.equals(EXPIRE_FIELD)) {
+                Instant i = jsonObj.getJsonObject(f).getInstant(JsonObjectCodec.DATE_FIELD);
                 this.sessionTimeoutAfter = (i.toEpochMilli() - Instant.now().toEpochMilli())/1000;
             } else {
                 Object o = jsonObj.getValue(f);
                 // see comment in toJsonObject
-                if(o instanceof JsonObject && ((JsonObject)o).containsKey("$date")) {
-                    this.put(f, ((JsonObject)o).getInstant("$date"));
+                if(o instanceof JsonObject && ((JsonObject)o).containsKey(JsonObjectCodec.DATE_FIELD)) {
+                    this.put(f, ((JsonObject)o).getInstant(JsonObjectCodec.DATE_FIELD));
                 } else {
                     this.put(f, o);
                 }

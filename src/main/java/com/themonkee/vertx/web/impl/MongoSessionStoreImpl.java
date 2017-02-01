@@ -3,6 +3,7 @@ package com.themonkee.vertx.web.impl;
 import com.themonkee.vertx.web.MongoSessionStore;
 import io.vertx.core.*;
 import io.vertx.core.json.JsonObject;
+import io.vertx.ext.auth.PRNG;
 import io.vertx.ext.mongo.IndexOptions;
 import io.vertx.ext.mongo.MongoClient;
 import io.vertx.ext.mongo.UpdateOptions;
@@ -30,6 +31,7 @@ public class MongoSessionStoreImpl implements MongoSessionStore {
 
     private final MongoClient mongoClient;
     private final Vertx vertx;
+    private final PRNG random;
 
     private String sessionCollection = "sessions";
 
@@ -44,6 +46,7 @@ public class MongoSessionStoreImpl implements MongoSessionStore {
                                  MongoClient mongoClient,
                                  JsonObject options,
                                  Future<MongoSessionStore> resultHandler) {
+        this.random = new PRNG(vertx);
         this.vertx = vertx;
         this.mongoClient = mongoClient;
         if(options != null) {
@@ -67,7 +70,7 @@ public class MongoSessionStoreImpl implements MongoSessionStore {
             // so we set expireAfterSeconds to 0 so its deleted when that Date is hit
             // see https://docs.mongodb.com/manual/tutorial/expire-data/
             this.mongoClient.createIndexWithOptions(this.sessionCollection,
-                    new JsonObject().put(SessionImpl.FIELD_EXPIRE, 1),
+                    new JsonObject().put(SessionImpl.EXPIRE_FIELD, 1),
                     new IndexOptions().expireAfter(0L, TimeUnit.SECONDS),
                     res -> {
                         if(res.succeeded()) {
@@ -87,7 +90,12 @@ public class MongoSessionStoreImpl implements MongoSessionStore {
 
     @Override
     public Session createSession(long timeout) {
-        return new SessionImpl(timeout);
+        return new SessionImpl(random, timeout, 32);
+    }
+
+    @Override
+    public Session createSession(long timeout, int length) {
+        return new SessionImpl(random, timeout, length);
     }
 
     @Override
@@ -100,7 +108,7 @@ public class MongoSessionStoreImpl implements MongoSessionStore {
                     if(r.result() == null) {
                         handler.handle(Future.succeededFuture(null));
                     } else {
-                        handler.handle(Future.succeededFuture(new SessionImpl(id, 0).fromJsonObject(r.result())));
+                        handler.handle(Future.succeededFuture(new SessionImpl(random).fromJsonObject(r.result())));
                     }
                 });
     }
