@@ -52,13 +52,13 @@ This module is build against *vertx-web* and *vertx-mongo-client*. Make sure you
     <dependency>
       <groupId>io.vertx</groupId>
       <artifactId>vertx-web</artifactId>
-      <version>3.3.2</version>
+      <version>3.4.2</version>
     </dependency>
     
     <dependency>
       <groupId>io.vertx</groupId>
       <artifactId>vertx-mongo-client</artifactId>
-      <version>3.3.3</version>
+      <version>3.4.3</version>
     </dependency>
 
 ## License
